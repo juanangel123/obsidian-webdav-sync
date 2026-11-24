@@ -36,6 +36,7 @@ reviewed before it). The owner may name another range.
 7. **Documentation**: `README.md` (user-facing, public: no personal data, hostnames, secrets), `CLAUDE.md`, header
    comments, against the code as it is now — stale numbers (iterations, debounce, interval, guard thresholds),
    missing settings, wrong claims. English in the repo.
+8. **UX** (owner 2026-11-24): the owner's shared UX dimension (its path: `CLAUDE.local.md`), on what a user meets: the settings tab, the notices, the status bar and the commands (`src/main.ts`), read from the code and, when possible, in Obsidian on desktop and phone. Can each setting be understood without the README, does a notice say what happened and what to do, is anything said twice. Public plugin: wording in English.
 
 ## Checks
 
