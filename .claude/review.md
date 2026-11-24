@@ -1,6 +1,6 @@
 # WebDAV Vault Sync's review: range, dimensions, checks
 
-Read by the owner's shared `review` skill (its path: `CLAUDE.local.md`). Only what is this
+Read by the owner's shared `full-review` skill (its path: `CLAUDE.local.md`). Only what is this
 project's own lives here.
 
 ## Range
