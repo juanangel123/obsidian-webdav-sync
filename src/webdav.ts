@@ -39,6 +39,16 @@ export class WebDavError extends Error {
   }
 }
 
+/** A request that got no answer in time (thrown by the app's Http). */
+export class TimeoutError extends Error {
+  constructor(
+    readonly method: string,
+    readonly seconds: number,
+  ) {
+    super(`${method}: no answer in ${seconds} s`);
+  }
+}
+
 function base64(s: string): string {
   const bytes = new TextEncoder().encode(s);
   let bin = "";

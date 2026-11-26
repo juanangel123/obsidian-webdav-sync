@@ -175,9 +175,19 @@ try {
   check(existsSync(join(ROOT, "srv", ".trash")), "the server keeps it in its .trash");
 
   // A wrong passphrase.
-  await B(`${P}.setSecret("passphrase", "mala"); ${P}.settingsChanged(); await ${P}.runSync(true); return 1;`);
-  const n = (await B(notices)) as string[];
-  check(n.some((t) => /passphrase/i.test(t)), `a wrong passphrase is told: ${n.at(-1)}`);
+  // In English and in Spanish: Obsidian's language (by default the system's), read when the plugin loads.
+  await B(`${P}.setSecret("passphrase", "mala"); ${P}.settingsChanged(); return 1;`);
+  const wrongIn = async (lang: string) => {
+    await B(
+      `localStorage.setItem("language", "${lang}"); await app.plugins.disablePlugin("${ID}"); await app.plugins.enablePlugin("${ID}"); await ${P}.runSync(true); return 1;`,
+    );
+    return ((await B(notices)) as string[]) ?? [];
+  };
+  const n = await wrongIn("en");
+  check(n.some((t) => /wrong encryption passphrase/.test(t)), `a wrong passphrase is told: ${n.at(-1)}`);
+  const ns = await wrongIn("es");
+  check(ns.some((t) => /frase de cifrado no es correcta/.test(t)), `in Spanish too: ${ns.at(-1)}`);
+  await B(`localStorage.removeItem("language"); return 1;`);
 
   // Another server (a new empty folder): the old state must not delete anything here.
   const before = (await A(files)) as string[];

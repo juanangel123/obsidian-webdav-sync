@@ -87,21 +87,31 @@ export async function seal(keys: Keys, path: string, data: Uint8Array, version =
   return out;
 }
 
-export class DecryptError extends Error {}
+/** What went wrong, for the message shown to the user (the English message is for logs). */
+export type DecryptKind = "notSealed" | "damaged" | "wrongName" | "wrongKey" | "passphrase" | "format" | "meta";
+
+export class DecryptError extends Error {
+  constructor(
+    message: string,
+    readonly kind: DecryptKind = "damaged",
+  ) {
+    super(message);
+  }
+}
 
 /**
  * Opens a blob. With `name`, also checks that the sealed path is the one that name stands for, so the server can't
  * serve one note's blob under another's name.
  */
 export async function open(keys: Keys, blob: Uint8Array, name?: string): Promise<Opened> {
-  if (blob.length < 16 + 16 + 4 || dec.decode(blob.subarray(0, 4)) !== MAGIC) throw new DecryptError("not a sealed file");
+  if (blob.length < 16 + 16 + 4 || dec.decode(blob.subarray(0, 4)) !== MAGIC) throw new DecryptError("not a sealed file", "notSealed");
   let plain: Uint8Array;
   try {
     plain = new Uint8Array(
       await crypto.subtle.decrypt({ name: "AES-GCM", iv: buf(blob.slice(4, 16)) }, keys.aes, buf(blob.subarray(16))),
     );
   } catch {
-    throw new DecryptError("wrong passphrase or damaged file");
+    throw new DecryptError("wrong passphrase or damaged file", "wrongKey");
   }
   const len = new DataView(plain.buffer, plain.byteOffset).getUint32(0);
   if (4 + len > plain.length) throw new DecryptError("damaged file");
@@ -113,7 +123,7 @@ export async function open(keys: Keys, blob: Uint8Array, name?: string): Promise
   }
   const { p: path, v: version } = header;
   if (typeof path !== "string" || !Number.isInteger(version) || (version as number) < 1) throw new DecryptError("damaged file");
-  if (name !== undefined && (await remoteName(keys, path)) !== name) throw new DecryptError("file under the wrong name");
+  if (name !== undefined && (await remoteName(keys, path)) !== name) throw new DecryptError("file under the wrong name", "wrongName");
   return { path, version: version as number, data: plain.subarray(4 + len) };
 }
 
@@ -137,15 +147,15 @@ export async function newMeta(passphrase: string, iterations = ITERATIONS): Prom
 
 /** The keys for a vault's metadata, or a DecryptError when the passphrase is not the vault's. */
 export async function unlock(passphrase: string, meta: Meta): Promise<Keys> {
-  if (meta?.version !== 1) throw new DecryptError(`unknown vault format ${meta?.version}`);
+  if (meta?.version !== 1) throw new DecryptError(`unknown vault format ${meta?.version}`, "format");
   if (!/^[0-9a-f]{32}$/.test(meta.salt) || !/^[0-9a-f]{32}$/.test(meta.id) || !Number.isInteger(meta.iterations) || meta.iterations < 1 || meta.iterations > MAX_ITERATIONS)
-    throw new DecryptError("sync.json is damaged");
+    throw new DecryptError("sync.json is damaged", "meta");
   const keys = await deriveKeys(passphrase, fromHex(meta.salt), meta.iterations);
   try {
     const { path } = await open(keys, fromHex(meta.check));
     if (path !== CHECK_PATH) throw new DecryptError("bad check");
   } catch {
-    throw new DecryptError("wrong encryption passphrase");
+    throw new DecryptError("wrong encryption passphrase", "passphrase");
   }
   return keys;
 }

@@ -43,7 +43,10 @@ export interface Result {
   deletedLocal: number;
   deletedRemote: number;
   conflicts: string[];
+  /** "path: message", in English (logs). */
   errors: string[];
+  /** The same failures with their error, for a message in the user's language. */
+  failures: { path: string; error: unknown }[];
   /** Paths left out of this run (too big, or a name this device can't hold). */
   skipped: string[];
   /** Set when the run stopped before changing anything: the deletions it would make, waiting for a confirmation. */
@@ -57,7 +60,26 @@ const CACHE_BYTES = 32 * 1024 * 1024;
 /** Blob overhead over the content: magic, IV, tag, header. */
 const BLOB_OVERHEAD = 64 + 1024;
 
-export class NoVault extends Error {}
+export class NoVault extends Error {
+  constructor(
+    message: string,
+    readonly kind: "none" | "notEmpty" | "vanished",
+  ) {
+    super(message);
+  }
+}
+
+/** A file's action that failed for a reason the user may need to act on. */
+export class FileError extends Error {
+  constructor(
+    message: string,
+    readonly kind: "gone" | "caseClash" | "badName",
+    /** For "caseClash": the path it clashes with. */
+    readonly other = "",
+  ) {
+    super(message);
+  }
+}
 
 /**
  * Reads the vault's metadata and returns the keys for the passphrase and the vault's id. A server with no `sync.json`
@@ -74,9 +96,9 @@ export async function openVault(
   };
   let meta = await read();
   if (!meta) {
-    if (!opts.create) throw new NoVault("no vault on this server yet: press Sync now on the first device to set it up");
+    if (!opts.create) throw new NoVault("no vault on this server yet: press Sync now on the first device to set it up", "none");
     if ((await dav.list()).some((e) => e.name.endsWith(".bin")))
-      throw new NoVault("this server folder holds notes but no sync.json: refusing to start a new vault over them");
+      throw new NoVault("this server folder holds notes but no sync.json: refusing to start a new vault over them", "notEmpty");
     const fresh = await newMeta(passphrase, opts.iterations);
     try {
       await dav.put(META, JSON.stringify(fresh.meta, null, 2), true);
@@ -84,7 +106,7 @@ export async function openVault(
       if (!(err instanceof WebDavError && err.status === 412)) throw err; // another device set it up first
     }
     meta = await read(); // whoever won, everyone uses what is on the server
-    if (!meta) throw new NoVault("sync.json vanished right after it was written");
+    if (!meta) throw new NoVault("sync.json vanished right after it was written", "vanished");
   }
   return { keys: await unlock(passphrase, meta), id: meta.id };
 }
@@ -144,6 +166,7 @@ class Run {
       deletedRemote: 0,
       conflicts: [],
       errors: [],
+      failures: [],
       skipped: [],
     };
   }
@@ -151,6 +174,7 @@ class Run {
   private error(path: string, err: unknown): void {
     const msg = err instanceof DecryptError ? `cannot decrypt (${err.message})` : err instanceof Error ? err.message : String(err);
     this.result.errors.push(`${path}: ${msg}`);
+    this.result.failures.push({ path, error: err });
     this.opts.log?.(`${path}: ${msg}`);
   }
 
@@ -255,7 +279,7 @@ class Run {
     this.cache.delete(name);
     const opened = await this.fetch(name);
     if (!opened) return null;
-    if (opened.path !== path) throw new DecryptError("file under the wrong name");
+    if (opened.path !== path) throw new DecryptError("file under the wrong name", "wrongName");
     return { etag: st.etag, size: st.size, opened };
   }
 
@@ -291,12 +315,12 @@ class Run {
       case "download": {
         const r = this.remote.get(path)!;
         const o = await this.fetch(r.name);
-        if (!o) throw new Error("gone from the server since the listing");
-        if (o.path !== path) throw new DecryptError("file under the wrong name");
+        if (!o) throw new FileError("gone from the server since the listing", "gone");
+        if (o.path !== path) throw new DecryptError("file under the wrong name", "wrongName");
         const s = this.state[path];
         if (s && o.version <= s.version) return this.reconcile(path); // an older blob put back: keep both
         const clash = this.caseClash(path);
-        if (clash) throw new Error(`differs only in case from "${clash}": rename one of them`);
+        if (clash) throw new FileError(`differs only in case from "${clash}": rename one of them`, "caseClash", clash);
         let l: LocalFile;
         try {
           l = await this.local.write(path, o.data, this.localFiles.get(path) ?? null);
