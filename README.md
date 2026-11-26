@@ -24,7 +24,8 @@ A small plugin on purpose: one kind of server, one way of syncing, and a sync en
 - **Automatic**: on startup, every few minutes, and shortly after you stop typing. Also from the ribbon icon and the
   *Sync now* command.
 - **Secrets stay out of the vault**: the password and the passphrase live in Obsidian's secret storage.
-- **Light**: no background process, about 40 kB of code, and only changed files go over the network.
+- **In your language**: English and Spanish, following Obsidian's language setting.
+- **Light**: no background process, about 50 kB of code, and only changed files go over the network.
 
 ## Install
 

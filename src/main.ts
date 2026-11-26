@@ -8,13 +8,25 @@ import {
   Setting,
   TFile,
   debounce,
+  getLanguage,
   normalizePath,
   requestUrl,
 } from "obsidian";
 import { type Keys, DecryptError, buf } from "./crypto";
+import { type Strings, errorText, strings } from "./i18n";
 import type { Deletions, LocalFile } from "./plan";
-import { type LocalFs, type Result, type State, LocalChanged, NoVault, openVault, sync } from "./sync";
-import { type Http, WebDav, WebDavError } from "./webdav";
+import { type LocalFs, type Result, type State, FileError, LocalChanged, NoVault, openVault, sync } from "./sync";
+import { type Http, TimeoutError, WebDav, WebDavError } from "./webdav";
+
+/** The user-facing text, in Obsidian's language (set on load; Obsidian restarts on a language change). */
+let t: Strings = strings("en");
+
+/** A notice under the plugin's name. */
+function notify(text: string, ms?: number): void {
+  new Notice(`WebDAV Sync: ${text}`, ms);
+}
+
+const hhmm = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 /** A run starts this long after the last edit (when "Sync after editing" is on). */
 const AFTER_EDIT_MS = 20_000;
@@ -56,7 +68,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   return Promise.race([
     p.finally(() => window.clearTimeout(timer)),
     new Promise<T>((_, reject) => {
-      timer = window.setTimeout(() => reject(new Error(`${what}: no answer in ${Math.round(ms / 1000)} s`)), ms);
+      timer = window.setTimeout(() => reject(new TimeoutError(what, Math.round(ms / 1000))), ms);
     }),
   ]);
 }
@@ -102,7 +114,7 @@ class VaultFs implements LocalFs {
   }
 
   async write(path: string, data: Uint8Array, expected: LocalFile | null): Promise<LocalFile> {
-    if (normalizePath(path) !== path) throw new Error("a name this device can't hold as is");
+    if (normalizePath(path) !== path) throw new FileError("a name this device can't hold as is", "badName");
     const existing = this.file(path);
     if (!this.same(existing, expected)) throw new LocalChanged();
     if (!existing && (await this.app.vault.adapter.exists(path))) throw new LocalChanged(); // there, but not indexed
@@ -146,6 +158,7 @@ export default class WebDavSyncPlugin extends Plugin {
   private readonly syncSoon = debounce(() => void this.runSync(false), AFTER_EDIT_MS, true);
 
   async onload(): Promise<void> {
+    t = strings(getLanguage());
     const saved = ((await this.loadData()) ?? {}) as Partial<Data> & { settings?: Record<string, unknown> };
     this.data = {
       settings: { ...DEFAULTS, ...(saved.settings as Partial<Settings>) },
@@ -162,15 +175,15 @@ export default class WebDavSyncPlugin extends Plugin {
     }
     await this.save();
 
-    this.addRibbonIcon("refresh-cw", "Sync with WebDAV", () => void this.runSync(true));
-    this.addCommand({ id: "sync-now", name: "Sync now", callback: () => void this.runSync(true) });
+    this.addRibbonIcon("refresh-cw", t.ribbon, () => void this.runSync(true));
+    this.addCommand({ id: "sync-now", name: t.cmdSyncNow, callback: () => void this.runSync(true) });
     this.addCommand({
       id: "forget-state",
-      name: "Forget sync state (the next sync compares every file and deletes nothing)",
+      name: t.cmdForget,
       callback: async () => {
         this.data.state = {};
         await this.save();
-        new Notice("WebDAV Sync: state forgotten. The next sync compares every file.");
+        notify(t.forgotten);
       },
     });
     if (!Platform.isMobile) this.statusBar = this.addStatusBarItem();
@@ -243,10 +256,10 @@ export default class WebDavSyncPlugin extends Plugin {
     try {
       u = new URL(this.data.settings.url);
     } catch {
-      return "the server address is not a URL";
+      return t.notUrl;
     }
     const local = ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
-    if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return "the server address must start with https://";
+    if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return t.notHttps;
     return null;
   }
 
@@ -268,32 +281,32 @@ export default class WebDavSyncPlugin extends Plugin {
   private showStatus(text?: string): void {
     if (!this.statusBar) return;
     if (text) return void this.statusBar.setText(text);
-    if (this.paused) return void this.statusBar.setText(`Sync paused: ${this.paused}`);
-    const t = this.data.lastSync;
-    this.statusBar.setText(t ? `Synced ${new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "");
+    if (this.paused) return void this.statusBar.setText(t.statusPaused(this.paused));
+    const last = this.data.lastSync;
+    this.statusBar.setText(last ? t.statusSynced(hhmm(new Date(last))) : "");
   }
 
   async runSync(manual: boolean, confirmed?: Deletions): Promise<void> {
     if (this.unloaded) return;
     if (!this.configured()) {
-      if (manual) new Notice("WebDAV Sync: fill in the settings first.");
+      if (manual) notify(t.fillSettings);
       return;
     }
     const problem = this.serverProblem();
     if (problem) {
-      if (manual) new Notice(`WebDAV Sync: ${problem}.`);
+      if (manual) notify(problem);
       return;
     }
     if (!manual && this.paused) return;
     if (this.running) {
       if (manual) {
-        new Notice("WebDAV Sync: already syncing; another run follows.");
+        notify(t.alreadySyncing);
         this.again = { manual: true, confirmed };
       }
       return;
     }
     this.running = true;
-    this.showStatus("Syncing…");
+    this.showStatus(t.statusSyncing);
     try {
       const dav = this.dav();
       const vault = await this.unlock(dav, manual);
@@ -324,16 +337,16 @@ export default class WebDavSyncPlugin extends Plugin {
       await this.save();
       this.report(result, manual);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = errorText(t, err);
       const fatal = err instanceof DecryptError || err instanceof NoVault || (err instanceof WebDavError && [401, 403].includes(err.status));
       if (fatal) {
         this.keys = null;
         this.paused = msg;
       }
-      if (manual || (fatal && this.lastErrors !== msg)) new Notice(`WebDAV Sync: ${msg}`, 10_000);
+      if (manual || (fatal && this.lastErrors !== msg)) notify(msg, 10_000);
       this.lastErrors = msg;
       console.error("[webdav-sync]", err);
-      this.showStatus(fatal ? undefined : `Sync failed ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+      this.showStatus(fatal ? undefined : t.statusFailed(hhmm(new Date())));
       return;
     } finally {
       this.running = false;
@@ -350,9 +363,9 @@ export default class WebDavSyncPlugin extends Plugin {
   private blocked(d: Deletions, manual: boolean): void {
     const n = d.local.length + d.remote.length;
     if (!manual) {
-      this.paused = `${n} deletions to confirm (Sync now)`;
+      this.paused = t.pausedDeletions(n);
       this.showStatus();
-      if (this.lastErrors !== this.paused) new Notice(`WebDAV Sync: paused, a sync would delete ${n} files. Press Sync now to review.`, 15_000);
+      if (this.lastErrors !== this.paused) notify(t.pausedNotice(n), 15_000);
       this.lastErrors = this.paused;
       return;
     }
@@ -364,18 +377,18 @@ export default class WebDavSyncPlugin extends Plugin {
 
   private report(r: Result, manual: boolean): void {
     const parts: string[] = [];
-    if (r.uploaded) parts.push(`${r.uploaded} up`);
-    if (r.downloaded) parts.push(`${r.downloaded} down`);
-    if (r.deletedLocal) parts.push(`${r.deletedLocal} moved to this vault's trash`);
-    if (r.deletedRemote) parts.push(`${r.deletedRemote} deleted on the server`);
-    if (r.conflicts.length) new Notice(`WebDAV Sync: conflict, kept both:\n${r.conflicts.join("\n")}`, 15_000);
-    const errors = r.errors.join("\n");
-    if (errors && (manual || errors !== this.lastErrors))
-      new Notice(`WebDAV Sync: ${r.errors.length} failed:\n${r.errors.slice(0, 5).join("\n")}`, 15_000);
-    this.lastErrors = errors;
-    if (manual && r.skipped.length) new Notice(`WebDAV Sync: left out (too big, or a name the server can't take):\n${r.skipped.slice(0, 5).join("\n")}`, 10_000);
-    if (manual && !errors) new Notice(`WebDAV Sync: ${parts.length ? parts.join(", ") : "up to date"}`);
-    else if (!manual && r.deletedLocal) new Notice(`WebDAV Sync: ${r.deletedLocal} deleted on another device, moved to this vault's trash`);
+    if (r.uploaded) parts.push(t.up(r.uploaded));
+    if (r.downloaded) parts.push(t.down(r.downloaded));
+    if (r.deletedLocal) parts.push(t.trashedHere(r.deletedLocal));
+    if (r.deletedRemote) parts.push(t.deletedOnServer(r.deletedRemote));
+    if (r.conflicts.length) notify(t.conflicts(r.conflicts.join("\n")), 15_000);
+    const errors = r.failures.map((f) => `${f.path}: ${errorText(t, f.error)}`);
+    const joined = errors.join("\n");
+    if (joined && (manual || joined !== this.lastErrors)) notify(t.failed(errors.length, errors.slice(0, 5).join("\n")), 15_000);
+    this.lastErrors = joined;
+    if (manual && r.skipped.length) notify(t.skipped(r.skipped.slice(0, 5).join("\n")), 10_000);
+    if (manual && !joined) notify(parts.length ? parts.join(", ") : t.upToDate);
+    else if (!manual && r.deletedLocal) notify(t.deletedElsewhere(r.deletedLocal));
   }
 }
 
@@ -390,22 +403,22 @@ class ConfirmModal extends Modal {
 
   onOpen(): void {
     const { contentEl } = this;
-    contentEl.createEl("h3", { text: "WebDAV Sync: many deletions" });
+    contentEl.createEl("h3", { text: t.modalTitle });
     const list = (title: string, paths: string[]) => {
       if (!paths.length) return;
-      contentEl.createEl("p", { text: `${title} (${paths.length}):` });
+      contentEl.createEl("p", { text: t.modalList(title, paths.length) });
       const ul = contentEl.createEl("ul");
       for (const p of paths.slice(0, 10)) ul.createEl("li", { text: p });
-      if (paths.length > 10) ul.createEl("li", { text: `…and ${paths.length - 10} more` });
+      if (paths.length > 10) ul.createEl("li", { text: t.modalMore(paths.length - 10) });
     };
-    list("To move to this vault's trash, deleted on the server or another device", this.d.local);
-    list("To delete on the server, deleted on this device", this.d.remote);
-    contentEl.createEl("p", { text: "If this is not what you expect (a wrong server, a wiped folder), cancel. Automatic syncing stays paused until you sync by hand." });
+    list(t.modalToTrash, this.d.local);
+    list(t.modalToDelete, this.d.remote);
+    contentEl.createEl("p", { text: t.modalWarning });
     new Setting(contentEl)
-      .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
+      .addButton((b) => b.setButtonText(t.cancel).onClick(() => this.close()))
       .addButton((b) =>
         b
-          .setButtonText("Delete and sync")
+          .setButtonText(t.deleteAndSync)
           .setWarning()
           .onClick(() => {
             this.close();
@@ -449,12 +462,12 @@ class SettingsTab extends PluginSettingTab {
     const s = this.plugin.data.settings;
     const p = this.plugin;
 
-    this.field("Server", "The WebDAV folder for this vault, https://… — an empty folder, one per vault.", s.url, (v) => (s.url = v));
-    this.field("Username", "", s.username, (v) => (s.username = v));
-    this.field("Password", "Kept in Obsidian's secret storage, not in the vault.", p.getSecret("password"), (v) => p.setSecret("password", v), true);
+    this.field(t.server, t.serverDesc, s.url, (v) => (s.url = v));
+    this.field(t.username, "", s.username, (v) => (s.username = v));
+    this.field(t.password, t.passwordDesc, p.getSecret("password"), (v) => p.setSecret("password", v), true);
     this.field(
-      "Encryption passphrase",
-      "Encrypts every note and its name before it leaves this device; the same on every device. The first device's first sync sets it. Without it the notes on the server can't be read: keep it safe.",
+      t.passphrase,
+      t.passphraseDesc,
       p.getSecret("passphrase"),
       (v) => p.setSecret("passphrase", v),
       true,
@@ -473,40 +486,40 @@ class SettingsTab extends PluginSettingTab {
             p.schedule();
           });
         });
-    number("Sync every (minutes)", "0 turns it off.", s.intervalMinutes, (n) => Number.isInteger(n) && n >= 0, (n) => (s.intervalMinutes = n));
-    number("Largest file (MB)", "Bigger files are left out of the sync.", s.maxFileMB, (n) => Number.isFinite(n) && n >= 1, (n) => (s.maxFileMB = n));
-    new Setting(containerEl).setName("Sync on startup").addToggle((t) =>
-      t.setValue(s.syncOnStartup).onChange(async (v) => {
+    number(t.interval, t.intervalDesc, s.intervalMinutes, (n) => Number.isInteger(n) && n >= 0, (n) => (s.intervalMinutes = n));
+    number(t.maxFile, t.maxFileDesc, s.maxFileMB, (n) => Number.isFinite(n) && n >= 1, (n) => (s.maxFileMB = n));
+    new Setting(containerEl).setName(t.onStartup).addToggle((tg) =>
+      tg.setValue(s.syncOnStartup).onChange(async (v) => {
         s.syncOnStartup = v;
         await p.save();
       }),
     );
     new Setting(containerEl)
-      .setName("Sync after editing")
-      .setDesc(`${AFTER_EDIT_MS / 1000} seconds after the last change.`)
-      .addToggle((t) =>
-        t.setValue(s.syncAfterEdit).onChange(async (v) => {
+      .setName(t.afterEdit)
+      .setDesc(t.afterEditDesc(AFTER_EDIT_MS / 1000))
+      .addToggle((tg) =>
+        tg.setValue(s.syncAfterEdit).onChange(async (v) => {
           s.syncAfterEdit = v;
           await p.save();
         }),
       );
     new Setting(containerEl)
-      .setName("Check connection")
-      .setDesc("Logs in and checks the passphrase. On a server with no vault yet, sets it up with this passphrase.")
+      .setName(t.check)
+      .setDesc(t.checkDesc)
       .addButton((b) =>
-        b.setButtonText("Check").onClick(async () => {
-          if (!p.configured()) return void new Notice("Fill in the four fields first.");
+        b.setButtonText(t.checkButton).onClick(async () => {
+          if (!p.configured()) return void new Notice(t.fillFour);
           const problem = p.serverProblem();
-          if (problem) return void new Notice(`WebDAV Sync: ${problem}.`);
+          if (problem) return void notify(problem);
           try {
             p.settingsChanged();
             await p.unlock(p.dav(), true);
-            new Notice("WebDAV Sync: connected, passphrase right.");
+            notify(t.connected);
           } catch (err) {
-            new Notice(`WebDAV Sync: ${err instanceof Error ? err.message : err}`, 10_000);
+            notify(errorText(t, err), 10_000);
           }
         }),
       );
-    new Setting(containerEl).setName("Sync now").addButton((b) => b.setButtonText("Sync").setCta().onClick(() => void p.runSync(true)));
+    new Setting(containerEl).setName(t.syncNow).addButton((b) => b.setButtonText(t.syncButton).setCta().onClick(() => void p.runSync(true)));
   }
 }
