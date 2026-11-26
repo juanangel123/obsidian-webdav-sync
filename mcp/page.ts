@@ -11,31 +11,35 @@ type Texts = (typeof TEXTS)["en"];
 const TEXTS = {
   en: {
     title: "Notes",
-    ask: "An app wants to read and add to your notes. Enter the server's password to let it.",
-    app: "App",
+    ask: "An app wants to read your notes, create new ones and add text to the ones you have. Enter the notes server's connection password to let it (not the WebDAV password nor the encryption passphrase).",
+    app: "Calls itself",
     unnamed: "(no name given)",
     goes: "Access goes to",
     local: (port: string) => `this computer${port ? ` (port ${port})` : ""}`,
     check: "Only go on if you just asked for this.",
-    password: "Password",
+    password: "Connection password",
     allow: "Allow",
     wrong: "Wrong password.",
-    paused: "Too many wrong passwords: try again in a few minutes.",
-    error: "This sign-in can't go on:",
+    paused: (min: number) => `Too many wrong passwords. Try again in ${min} ${min === 1 ? "minute" : "minutes"}.`,
+    cantTitle: "Can't sign in",
+    client: "This connection is no longer valid. Remove the connector in the app and add it again.",
+    request: "The app sent a request this server can't accept.",
   },
   es: {
     title: "Notas",
-    ask: "Una aplicación quiere leer tus notas y añadir otras. Escribe la contraseña del servidor para permitírselo.",
-    app: "Aplicación",
+    ask: "Una aplicación quiere leer tus notas, crear notas nuevas y añadir texto a las que ya tienes. Escribe la contraseña de conexión del servidor de notas para permitírselo (no la de WebDAV ni la frase de cifrado).",
+    app: "Se presenta como",
     unnamed: "(sin nombre)",
     goes: "El acceso irá a",
     local: (port: string) => `este ordenador${port ? ` (puerto ${port})` : ""}`,
     check: "Sigue solo si acabas de pedirlo tú.",
-    password: "Contraseña",
+    password: "Contraseña de conexión",
     allow: "Permitir",
     wrong: "Contraseña incorrecta.",
-    paused: "Demasiados intentos fallidos: vuelve a probar dentro de unos minutos.",
-    error: "No se puede seguir con este acceso:",
+    paused: (min: number) => `Demasiados intentos fallidos. Vuelve a intentarlo dentro de ${min} ${min === 1 ? "minuto" : "minutos"}.`,
+    cantTitle: "No se puede iniciar sesión",
+    client: "Esta conexión ya no es válida. Quita el conector en la aplicación y vuelve a añadirlo.",
+    request: "La aplicación ha enviado una petición que este servidor no acepta.",
   },
 };
 
@@ -65,7 +69,9 @@ input[aria-invalid=true]{border-color:var(--err)}
 button{display:block;width:100%;margin-top:20px;padding:10px 14px;font:inherit;font-weight:600;color:#fff;background:var(--accent);
 border:0;border-radius:8px;cursor:pointer;transition:background .15s}
 button:hover{background:var(--accent-hover)}
-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}`;
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+:disabled{opacity:.5;cursor:not-allowed}button:disabled:hover{background:var(--accent)}
+.detail{color:var(--muted);font-size:12px;margin:10px 0 0;overflow-wrap:anywhere}`;
 
 const GEM = `<svg class="gem" viewBox="0 0 48 48" aria-hidden="true"><defs>
 <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b79cff"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
@@ -73,14 +79,23 @@ const GEM = `<svg class="gem" viewBox="0 0 48 48" aria-hidden="true"><defs>
 <path d="M24 3 40 15 35 43 13 43 8 15Z" fill="url(#g1)"/><path d="M24 3 29 22 35 43 24 31Z" fill="url(#g2)" opacity=".9"/>
 <path d="M8 15 24 31 13 43Z" fill="#3b1a78" opacity=".35"/><path d="M24 3 19 22 24 31 29 22Z" fill="#fff" opacity=".18"/></svg>`;
 
+/** A sign-in that can't go on: the client is unknown (re-add it) or its request is wrong; `detail` for the curious. */
+export interface PageError {
+  kind: "client" | "request";
+  detail: string;
+}
+
 export function page(
   req: Request,
-  o: { fields?: Record<string, string>; who?: Who; error?: string; wrong?: "password" | "paused" },
+  o: { fields?: Record<string, string>; who?: Who; error?: PageError; wrong?: "password" | { pausedMin: number } },
   status?: number,
 ): Response {
   const t = /^es\b/i.test(req.headers.get("accept-language") ?? "") ? TEXTS.es : TEXTS.en;
+  const paused = typeof o.wrong === "object";
+  const off = paused ? " disabled" : "";
   const body = o.error
-    ? `<p class="err">${esc(t.error)} ${esc(o.error)}</p>`
+    ? `<p class="err">${esc(o.error.kind === "client" ? t.client : t.request)}</p>
+<p class="detail">${esc(o.error.detail)}</p>`
     : `<p class="lead">${esc(t.ask)}</p>
 ${o.who ? whoBlock(t, o.who) : ""}
 <form method="post" action="/authorize">
@@ -88,9 +103,9 @@ ${Object.entries(o.fields ?? {})
   .map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`)
   .join("\n")}
 <label for="pw">${esc(t.password)}</label>
-<input id="pw" type="password" name="password" autocomplete="current-password" autofocus required${o.wrong ? ' aria-invalid="true" aria-describedby="err"' : ""}>
-${o.wrong ? `<p class="err" id="err" role="alert">${esc(o.wrong === "paused" ? t.paused : t.wrong)}</p>` : ""}
-<button type="submit">${esc(t.allow)}</button>
+<input id="pw" type="password" name="password" autocomplete="current-password" required${paused ? off : " autofocus"}${o.wrong === "password" ? ' aria-invalid="true" aria-describedby="err"' : ""}>
+${o.wrong ? `<p class="err" id="err" role="alert">${esc(typeof o.wrong === "object" ? t.paused(o.wrong.pausedMin) : t.wrong)}</p>` : ""}
+<button type="submit"${off}>${esc(t.allow)}</button>
 </form>`;
   const html = `<!doctype html><html lang="${t === TEXTS.es ? "es" : "en"}"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">
@@ -98,7 +113,7 @@ ${o.wrong ? `<p class="err" id="err" role="alert">${esc(o.wrong === "paused" ? t
 <style>${CSS}</style>
 <main class="card">
 ${GEM}
-<h1>${esc(t.title)}</h1>
+<h1>${esc(o.error ? t.cantTitle : t.title)}</h1>
 ${body}
 </main>
 </html>`;

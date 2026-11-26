@@ -63,10 +63,10 @@ Requires Obsidian 1.11.4 or later.
 
 | Setting | Default | |
 |---|---|---|
-| Sync every (minutes) | 5 | 0 turns it off |
+| Sync every (minutes) | 5 | 0: never |
 | Sync on startup and on return | on | 3 seconds after Obsidian opens, and when you come back to it after a minute or more away (not twice within 30 seconds) |
 | Sync after editing | on | 20 seconds after your last change |
-| Largest file (MB) | 50 | bigger files are left out, never deleted |
+| Max file size (MB) | 50 | bigger files are left out, never deleted |
 
 Hidden files and folders (those starting with `.`, such as `.obsidian` with your settings and plugins) are not synced.
 

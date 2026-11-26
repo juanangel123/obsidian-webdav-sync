@@ -13,8 +13,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const en = {
   ribbon: "Sync with WebDAV",
   cmdSyncNow: "Sync now",
-  cmdForget: "Forget sync state (the next sync compares every file and deletes nothing)",
-  forgotten: "state forgotten. The next sync compares every file.",
+  cmdForget: "Forget sync state",
+  forgotten: "state forgotten: the next sync compares every file and deletes nothing.",
 
   statusSyncing: "Syncing…",
   statusSynced: (time: string) => `Synced ${time}`,
@@ -23,7 +23,7 @@ const en = {
 
   fillSettings: "fill in the settings first.",
   notUrl: "the server address is not a URL.",
-  notHttps: "the server address must start with https://",
+  notHttps: "the server address must use https.",
   alreadySyncing: "already syncing; another run follows.",
   pausedDeletions: (n: number) => `${plural(n, "deletion", "deletions")} to confirm (Sync now)`,
   pausedNotice: (n: number) => `paused, a sync would delete ${plural(n, "file", "files")}. Press Sync now to review.`,
@@ -56,17 +56,19 @@ const en = {
   passphraseDesc:
     "Encrypts every note and its name before it leaves this device; the same on every device. The first device's first sync sets it. Without it the notes on the server can't be read: keep it safe.",
   interval: "Sync every (minutes)",
-  intervalDesc: "0 turns it off.",
-  maxFile: "Largest file (MB)",
+  intervalDesc: "0: never.",
+  maxFile: "Max file size (MB)",
   maxFileDesc: "Bigger files are left out of the sync.",
   onStartup: "Sync on startup and on return",
+  onStartupDesc: "When Obsidian opens, and when you come back to it after a minute or more away.",
   afterEdit: "Sync after editing",
   afterEditDesc: (s: number) => `${s} seconds after the last change.`,
   check: "Check connection",
-  checkDesc: "Logs in and checks the passphrase. On a server with no vault yet, sets it up with this passphrase.",
+  checkDesc: "Logs in and checks the encryption passphrase. On an empty server, sets the vault up with it.",
   checkButton: "Check",
-  fillFour: "Fill in the four fields first.",
-  connected: "connected, passphrase right.",
+  fillFour: "fill in the four fields first.",
+  connected: "connected, encryption passphrase right.",
+  connectedCreated: "connected; vault set up on the server with this encryption passphrase.",
   syncNow: "Sync now",
   syncButton: "Sync",
 
@@ -77,7 +79,7 @@ const en = {
   whyNotSealed: "not a file of this plugin",
   whyDamaged: "damaged file",
   whyWrongName: "file under the wrong name",
-  whyWrongKey: "wrong passphrase or damaged file",
+  whyWrongKey: "wrong encryption passphrase or damaged file",
   errNoVault: "no vault on this server yet: press Sync now on the first device to set it up",
   errNotEmpty: "this server folder holds notes but no sync.json: refusing to start a new vault over them",
   errVanished: "sync.json vanished right after it was written",
@@ -90,6 +92,7 @@ const en = {
   errNotFound: "not found on the server: check the address",
   errHttp: (status: number) => `the server answered HTTP ${status}`,
   errTimeout: (s: number) => `the server gave no answer in ${s} s`,
+  errNetwork: "no connection to the server: check the network or the address",
 };
 
 export type Strings = typeof en;
@@ -97,35 +100,35 @@ export type Strings = typeof en;
 const es: Strings = {
   ribbon: "Sincronizar con WebDAV",
   cmdSyncNow: "Sincronizar ahora",
-  cmdForget: "Olvidar el estado de sincronización (la siguiente compara todos los archivos y no borra nada)",
-  forgotten: "estado olvidado. La siguiente sincronización compara todos los archivos.",
+  cmdForget: "Olvidar el estado de sincronización",
+  forgotten: "estado olvidado: la siguiente sincronización compara todos los archivos y no borra nada.",
 
   statusSyncing: "Sincronizando…",
-  statusSynced: (time) => `Sincronizado ${time}`,
-  statusFailed: (time) => `Error al sincronizar ${time}`,
+  statusSynced: (time) => `Sincronizado a las ${time}`,
+  statusFailed: (time) => `Falló a las ${time}`,
   statusPaused: (reason) => `Sincronización en pausa: ${reason}`,
 
   fillSettings: "rellena primero los ajustes.",
   notUrl: "la dirección del servidor no es una URL.",
-  notHttps: "la dirección del servidor debe empezar por https://",
-  alreadySyncing: "ya está sincronizando; después se hará otra vez.",
+  notHttps: "la dirección del servidor debe usar https.",
+  alreadySyncing: "ya se está sincronizando; al terminar se sincroniza otra vez.",
   pausedDeletions: (n) => `${plural(n, "borrado", "borrados")} por confirmar (Sincronizar ahora)`,
   pausedNotice: (n) =>
     `en pausa: una sincronización borraría ${plural(n, "archivo", "archivos")}. Pulsa Sincronizar ahora para revisarlo.`,
 
   up: (n) => plural(n, "subido", "subidos"),
-  down: (n) => plural(n, "bajado", "bajados"),
-  trashedHere: (n) => `${plural(n, "archivo", "archivos")} a la papelera de esta bóveda`,
+  down: (n) => plural(n, "descargado", "descargados"),
+  trashedHere: (n) => `${plural(n, "archivo", "archivos")} a la papelera de Obsidian`,
   deletedOnServer: (n) => `${plural(n, "borrado", "borrados")} en el servidor`,
   upToDate: "todo al día",
   conflicts: (list) => `conflicto, se conservan las dos versiones:\n${list}`,
   failed: (n, list) => `${plural(n, "error", "errores")}:\n${list}`,
   skipped: (list) => `sin sincronizar (demasiado grandes, o un nombre que el servidor no admite):\n${list}`,
   deletedElsewhere: (n) =>
-    `${plural(n, "archivo borrado", "archivos borrados")} en otro dispositivo (a la papelera de esta bóveda)`,
+    `${plural(n, "archivo borrado", "archivos borrados")} en otro dispositivo (a la papelera de Obsidian)`,
 
   modalTitle: "WebDAV Sync: muchos borrados",
-  modalToTrash: "A la papelera de esta bóveda (borrados en el servidor o en otro dispositivo)",
+  modalToTrash: "A la papelera de Obsidian (borrados en el servidor o en otro dispositivo)",
   modalToDelete: "A borrar en el servidor (borrados en este dispositivo)",
   modalList: (title, n) => `${title} (${n}):`,
   modalMore: (n) => `…y ${n} más`,
@@ -143,28 +146,30 @@ const es: Strings = {
   passphraseDesc:
     "Cifra cada nota y su nombre antes de salir de este dispositivo; la misma en todos. La fija la primera sincronización del primer dispositivo. Sin ella no se pueden leer las notas del servidor: guárdala bien.",
   interval: "Sincronizar cada (minutos)",
-  intervalDesc: "0 la desactiva.",
-  maxFile: "Archivo más grande (MB)",
+  intervalDesc: "0: nunca.",
+  maxFile: "Tamaño máximo de archivo (MB)",
   maxFileDesc: "Los archivos más grandes no se sincronizan.",
   onStartup: "Sincronizar al abrir y al volver",
+  onStartupDesc: "Al abrir Obsidian y al volver a él tras un minuto o más fuera.",
   afterEdit: "Sincronizar después de editar",
   afterEditDesc: (s) => `${s} segundos después del último cambio.`,
   check: "Comprobar conexión",
-  checkDesc: "Inicia sesión y comprueba la frase. En un servidor sin bóveda todavía, la crea con esta frase.",
+  checkDesc: "Inicia sesión y comprueba la frase de cifrado. En un servidor vacío, crea la bóveda con ella.",
   checkButton: "Comprobar",
-  fillFour: "Rellena primero los cuatro campos.",
-  connected: "conectado, frase correcta.",
+  fillFour: "rellena primero los cuatro campos.",
+  connected: "conectado, frase de cifrado correcta.",
+  connectedCreated: "conectado; bóveda creada en el servidor con esta frase de cifrado.",
   syncNow: "Sincronizar ahora",
   syncButton: "Sincronizar",
 
   errPassphrase: "la frase de cifrado no es correcta",
-  errFormat: "la bóveda del servidor tiene un formato que esta versión no conoce: actualiza el plugin",
+  errFormat: "la bóveda del servidor tiene un formato que esta versión no conoce: actualiza el complemento",
   errMeta: "el sync.json del servidor está dañado",
   errDecrypt: (why) => `no se puede descifrar (${why})`,
-  whyNotSealed: "no es un archivo de este plugin",
+  whyNotSealed: "no es un archivo de este complemento",
   whyDamaged: "archivo dañado",
   whyWrongName: "archivo con un nombre que no le corresponde",
-  whyWrongKey: "frase incorrecta o archivo dañado",
+  whyWrongKey: "frase de cifrado incorrecta o archivo dañado",
   errNoVault: "aún no hay bóveda en este servidor: pulsa Sincronizar ahora en el primer dispositivo para crearla",
   errNotEmpty: "esta carpeta del servidor tiene notas pero no sync.json: no se crea una bóveda nueva encima",
   errVanished: "el sync.json desapareció justo después de escribirlo",
@@ -177,6 +182,7 @@ const es: Strings = {
   errNotFound: "no existe en el servidor: revisa la dirección",
   errHttp: (status) => `el servidor respondió HTTP ${status}`,
   errTimeout: (s) => `el servidor no respondió en ${s} s`,
+  errNetwork: "no hay conexión con el servidor: revisa la red o la dirección",
 };
 
 export const languages: Record<string, Strings> = { en, es };
@@ -216,5 +222,10 @@ export function errorText(t: Strings, err: unknown): string {
     if (err.status === 404) return t.errNotFound;
     return t.errHttp(err.status);
   }
+  if (err instanceof Error && NETWORK.test(err.message)) return t.errNetwork;
   return err instanceof Error ? err.message : String(err);
 }
+
+/** How a request with no answer at all fails: Chromium's net:: codes (Obsidian), Node's, and fetch's own words. */
+const NETWORK =
+  /net::ERR_|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH|getaddrinfo|Failed to fetch|NetworkError|Network request failed|Unable to connect/i;

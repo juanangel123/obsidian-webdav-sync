@@ -9,7 +9,7 @@
 // password: changing either one logs every client out.
 
 import { b64url, json } from "./http";
-import { page } from "./page";
+import { type PageError, page } from "./page";
 
 const enc = new TextEncoder();
 
@@ -211,16 +211,16 @@ export class OAuth {
   }
 
   /** The request's parameters, checked; an error message when they can't be used. */
-  private async authRequest(p: URLSearchParams): Promise<{ ok: Record<string, string>; who: Who } | { error: string }> {
+  private async authRequest(p: URLSearchParams): Promise<{ ok: Record<string, string>; who: Who } | { error: PageError }> {
     const get = (k: string) => p.get(k) ?? "";
     const client = await this.verify(get("client_id"), "client");
-    if (!client) return { error: "unknown client: add the connector again" };
+    if (!client) return { error: { kind: "client", detail: "unknown client" } };
     const redirect = get("redirect_uri");
-    if (!(client.r as string[]).includes(redirect)) return { error: "this redirect address is not the client's" };
-    if (get("response_type") !== "code") return { error: "unsupported response_type" };
+    if (!(client.r as string[]).includes(redirect)) return { error: { kind: "request", detail: "redirect_uri is not the client's" } };
+    if (get("response_type") !== "code") return { error: { kind: "request", detail: "unsupported response_type" } };
     if (get("code_challenge_method") !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(get("code_challenge")))
-      return { error: "PKCE (S256) is required" };
-    if (get("resource") && get("resource").replace(/\/$/, "") !== this.resource) return { error: "the resource is not this server" };
+      return { error: { kind: "request", detail: "PKCE (S256) is required" } };
+    if (get("resource") && get("resource").replace(/\/$/, "") !== this.resource) return { error: { kind: "request", detail: "the resource is not this server" } };
     return {
       // Everything the form sends back on POST, where it is checked again.
       ok: {
@@ -255,7 +255,7 @@ export class OAuth {
     try {
       for (const [k, v] of await req.formData()) if (typeof v === "string") p.set(k, v);
     } catch {
-      return page(req, { error: "not a form" });
+      return page(req, { error: { kind: "request", detail: "not a form" } });
     }
     const r = await this.authRequest(p);
     if ("error" in r) return page(req, { error: r.error });
@@ -263,8 +263,10 @@ export class OAuth {
     const from = this.address(req);
     const mine = (this.fails.get(from) ?? []).filter((t) => now - t < FAIL_WINDOW_MS);
     this.failsAll = this.failsAll.filter((t) => now - t < 3_600_000);
-    if (mine.length >= MAX_FAILS || this.failsAll.length >= MAX_FAILS_ALL)
-      return page(req, { fields: r.ok, who: r.who, wrong: "paused" }, 429);
+    if (mine.length >= MAX_FAILS || this.failsAll.length >= MAX_FAILS_ALL) {
+      const until = mine.length >= MAX_FAILS ? mine[0] + FAIL_WINDOW_MS : this.failsAll[0] + 3_600_000;
+      return page(req, { fields: r.ok, who: r.who, wrong: { pausedMin: Math.max(1, Math.ceil((until - now) / 60_000)) } }, 429);
+    }
     if (!(await same(p.get("password") ?? "", this.cfg.password))) {
       this.fails.set(from, [...mine, now]);
       this.failsAll.push(now);

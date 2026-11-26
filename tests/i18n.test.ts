@@ -41,6 +41,14 @@ describe("i18n", () => {
     expect(errorText(es, new TimeoutError("PUT", 61))).toBe(es.errTimeout(61));
     expect(errorText(es, new WebDavError("PROPFIND /: HTTP 401", 401))).toBe(es.errLogin);
     expect(errorText(es, new WebDavError("GET /x: HTTP 500", 500))).toBe(es.errHttp(500));
-    expect(errorText(es, new Error("net::ERR_NAME_NOT_RESOLVED"))).toBe("net::ERR_NAME_NOT_RESOLVED");
+    expect(errorText(es, new Error("net::ERR_NAME_NOT_RESOLVED"))).toBe(es.errNetwork);
+    expect(errorText(es, new Error("disk full"))).toBe("disk full");
   });
+});
+
+test("a request with no answer at all is told as no connection, in the user's language", () => {
+  const es = languages.es;
+  expect(errorText(es, new Error("net::ERR_INTERNET_DISCONNECTED"))).toBe(es.errNetwork);
+  expect(errorText(es, new Error("getaddrinfo ENOTFOUND example.invalid"))).toBe(es.errNetwork);
+  expect(errorText(es, new Error("something else"))).toBe("something else");
 });

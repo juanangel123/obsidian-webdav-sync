@@ -82,19 +82,21 @@ export class FileError extends Error {
 }
 
 /**
- * Reads the vault's metadata and returns the keys for the passphrase and the vault's id. A server with no `sync.json`
- * gets a new vault only when `create` (a manual action) and only if it holds no notes yet.
+ * Reads the vault's metadata and returns the keys for the passphrase, the vault's id, and whether this call set the
+ * vault up. A server with no `sync.json` gets a new vault only when `create` (a manual action) and only if it holds
+ * no notes yet.
  */
 export async function openVault(
   dav: WebDav,
   passphrase: string,
   opts: { create?: boolean; iterations?: number } = {},
-): Promise<{ keys: Keys; id: string }> {
+): Promise<{ keys: Keys; id: string; created: boolean }> {
   const read = async () => {
     const raw = await dav.get(META);
     return raw ? (JSON.parse(new TextDecoder().decode(raw)) as Meta) : null;
   };
   let meta = await read();
+  let created = false;
   if (!meta) {
     if (!opts.create) throw new NoVault("no vault on this server yet: press Sync now on the first device to set it up", "none");
     if ((await dav.list()).some((e) => e.name.endsWith(".bin")))
@@ -107,8 +109,9 @@ export async function openVault(
     }
     meta = await read(); // whoever won, everyone uses what is on the server
     if (!meta) throw new NoVault("sync.json vanished right after it was written", "vanished");
+    created = meta.id === fresh.meta.id;
   }
-  return { keys: await unlock(passphrase, meta), id: meta.id };
+  return { keys: await unlock(passphrase, meta), id: meta.id, created };
 }
 
 function equal(a: Uint8Array, b: Uint8Array): boolean {

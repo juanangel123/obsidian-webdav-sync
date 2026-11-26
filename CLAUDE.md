@@ -51,7 +51,7 @@ carries a `kind` that `errorText` translates. A new language: a dictionary `xx: 
 
 ## Checks and release
 
-- `bun run check`: both type-checks, 85 tests (pure logic, the translations; the MCP server and its OAuth; devices synced through a real `rclone serve webdav` —
+- `bun run check`: both type-checks, 87 tests (pure logic, the translations; the MCP server and its OAuth; devices synced through a real `rclone serve webdav` —
   races, interrupted runs, restores, corrupt or swapped blobs, case-insensitive disks, the recovery script), build.
   The rclone tests are skipped when rclone is missing: never release on a run that skipped them.
 - `bun run e2e` (Windows): the built plugin in two real Obsidian instances with their own profiles and throwaway

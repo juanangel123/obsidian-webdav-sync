@@ -292,11 +292,11 @@ export default class WebDavSyncPlugin extends Plugin {
     return new WebDav(http, s.url, s.username, this.getSecret("password"));
   }
 
-  async unlock(dav: WebDav, create: boolean): Promise<{ keys: Keys; id: string }> {
+  async unlock(dav: WebDav, create: boolean): Promise<{ keys: Keys; id: string; created: boolean }> {
     const s = this.data.settings;
     const passphrase = this.getSecret("passphrase");
     const id = `${s.url}\n${s.username}\n${passphrase}`;
-    if (this.keys?.for === id) return this.keys;
+    if (this.keys?.for === id) return { ...this.keys, created: false };
     const v = await openVault(dav, passphrase, { create });
     this.keys = { for: id, ...v };
     return v;
@@ -513,7 +513,7 @@ class SettingsTab extends PluginSettingTab {
         });
     number(t.interval, t.intervalDesc, s.intervalMinutes, (n) => Number.isInteger(n) && n >= 0, (n) => (s.intervalMinutes = n));
     number(t.maxFile, t.maxFileDesc, s.maxFileMB, (n) => Number.isFinite(n) && n >= 1, (n) => (s.maxFileMB = n));
-    new Setting(containerEl).setName(t.onStartup).addToggle((tg) =>
+    new Setting(containerEl).setName(t.onStartup).setDesc(t.onStartupDesc).addToggle((tg) =>
       tg.setValue(s.syncOnStartup).onChange(async (v) => {
         s.syncOnStartup = v;
         await p.save();
@@ -533,13 +533,13 @@ class SettingsTab extends PluginSettingTab {
       .setDesc(t.checkDesc)
       .addButton((b) =>
         b.setButtonText(t.checkButton).onClick(async () => {
-          if (!p.configured()) return void new Notice(t.fillFour);
+          if (!p.configured()) return void notify(t.fillFour);
           const problem = p.serverProblem();
           if (problem) return void notify(problem);
           try {
             p.settingsChanged();
-            await p.unlock(p.dav(), true);
-            notify(t.connected);
+            const v = await p.unlock(p.dav(), true);
+            notify(v.created ? t.connectedCreated : t.connected);
           } catch (err) {
             notify(errorText(t, err), 10_000);
           }

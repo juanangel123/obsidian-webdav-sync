@@ -384,8 +384,22 @@ describe("oauth", () => {
   test("logins pause after five wrong passwords", async () => {
     const { login } = await connect(makeAuth());
     for (let i = 0; i < 5; i++) expect((await login("wrong password!")).status).toBe(401);
-    expect((await login(PASSWORD)).status).toBe(429);
+    const paused = await login(PASSWORD);
+    expect(paused.status).toBe(429);
+    const html = await paused.text();
+    expect(html).toContain("15 minutes");
+    expect(html).toContain('<button type="submit" disabled>');
   });
+
+  test("a sign-in that can't go on says what to do, in the person's language", async () => {
+    const handle = createHandler({ notes: fakeNotes, oauth: makeAuth(), inbox: "" });
+    const res = await handle(new Request(`${BASE}/authorize?client_id=forged`, { headers: { "Accept-Language": "es-ES,es;q=0.9" } }));
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain("No se puede iniciar sesión");
+    expect(html).toContain("Quita el conector");
+  });
+
   test("logins pause per address; someone else's wrong passwords don't lock the owner out", async () => {
     const { login } = await connect(makeAuth());
     for (let i = 0; i < 5; i++) expect((await login("wrong password!", "203.0.113.9")).status).toBe(401);

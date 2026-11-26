@@ -344,6 +344,10 @@ describe.skipIf(!rcloneBin())("vaults, guard, limits", () => {
   test("no vault is set up automatically, nor over existing notes", async () => {
     const s = await server();
     await expect(openVault(s.dav(), "secret", { iterations: ITER })).rejects.toBeInstanceOf(NoVault);
+    // Set up by hand (Check, Sync now): told so, once; opening it again is not "created".
+    expect((await openVault(s.dav(), "secret", { create: true, iterations: ITER })).created).toBe(true);
+    expect((await openVault(s.dav(), "secret", { create: true, iterations: ITER })).created).toBe(false);
+    rmSync(join(s.dir, "sync.json"));
     const a = new Device(s);
     a.fs.set("x.md", "x");
     await a.sync();
