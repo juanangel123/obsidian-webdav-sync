@@ -315,6 +315,37 @@ const TEXTS = {
   },
 };
 
+// The sign-in page: Obsidian-like (its violet accent, dark and light greys, Inter when installed), without its name
+// or logo: a password page dressed as a known brand is what phishing looks like. A gem of its own instead.
+const CSS = `:root{--bg:#f6f6f6;--card:#fff;--text:#222;--muted:#5c5c5c;--line:#e0e0e0;--accent:#7c3aed;--accent-hover:#6d28d9;
+--field:#fff;--err:#d43c3c;--shadow:0 1px 2px rgba(0,0,0,.04),0 8px 28px rgba(0,0,0,.08)}
+@media(prefers-color-scheme:dark){:root{--bg:#1e1e1e;--card:#262626;--text:#dadada;--muted:#a3a3a3;--line:#363636;
+--accent:#8a5cf5;--accent-hover:#9d76f7;--field:#1e1e1e;--err:#fb6464;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px rgba(0,0,0,.35)}}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{display:grid;place-items:center;min-height:100vh;padding:16px;background:var(--bg);color:var(--text);
+font:15px/1.55 Inter,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:32px 28px;box-shadow:var(--shadow)}
+.gem{display:block;width:44px;height:44px;margin:0 0 18px}
+h1{font-size:22px;font-weight:700;letter-spacing:-.01em;margin:0 0 6px}
+.lead{color:var(--muted);margin:0 0 22px}
+label{display:block;font-size:13px;font-weight:600;margin:0 0 6px}
+input[type=password]{display:block;width:100%;padding:10px 12px;font:inherit;color:var(--text);background:var(--field);
+border:1px solid var(--line);border-radius:8px;outline:none;transition:border-color .15s,box-shadow .15s}
+input[type=password]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+input[aria-invalid=true]{border-color:var(--err)}
+.err{color:var(--err);font-size:13px;margin:8px 0 0}
+button{display:block;width:100%;margin-top:20px;padding:10px 14px;font:inherit;font-weight:600;color:#fff;background:var(--accent);
+border:0;border-radius:8px;cursor:pointer;transition:background .15s}
+button:hover{background:var(--accent-hover)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}`;
+
+const GEM = `<svg class="gem" viewBox="0 0 48 48" aria-hidden="true"><defs>
+<linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b79cff"/><stop offset="1" stop-color="#6d28d9"/></linearGradient>
+<linearGradient id="g2" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a5cf5"/><stop offset="1" stop-color="#4c1d95"/></linearGradient></defs>
+<path d="M24 3 40 15 35 43 13 43 8 15Z" fill="url(#g1)"/><path d="M24 3 29 22 35 43 24 31Z" fill="url(#g2)" opacity=".9"/>
+<path d="M8 15 24 31 13 43Z" fill="#3b1a78" opacity=".35"/><path d="M24 3 19 22 24 31 29 22Z" fill="#fff" opacity=".18"/></svg>`;
+
 function page(
   req: Request,
   o: { fields?: Record<string, string>; error?: string; wrong?: "password" | "paused" },
@@ -322,24 +353,26 @@ function page(
 ): Response {
   const t = /^es\b/i.test(req.headers.get("accept-language") ?? "") ? TEXTS.es : TEXTS.en;
   const body = o.error
-    ? `<p>${esc(t.error)} ${esc(o.error)}</p>`
-    : `<p>${esc(t.ask)}</p>
-${o.wrong ? `<p class="err">${esc(o.wrong === "paused" ? t.paused : t.wrong)}</p>` : ""}
+    ? `<p class="err">${esc(t.error)} ${esc(o.error)}</p>`
+    : `<p class="lead">${esc(t.ask)}</p>
 <form method="post" action="/authorize">
 ${Object.entries(o.fields ?? {})
   .map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`)
   .join("\n")}
-<label>${esc(t.password)} <input type="password" name="password" autocomplete="current-password" autofocus required></label>
-<button>${esc(t.allow)}</button>
+<label for="pw">${esc(t.password)}</label>
+<input id="pw" type="password" name="password" autocomplete="current-password" autofocus required${o.wrong ? ' aria-invalid="true" aria-describedby="err"' : ""}>
+${o.wrong ? `<p class="err" id="err" role="alert">${esc(o.wrong === "paused" ? t.paused : t.wrong)}</p>` : ""}
+<button type="submit">${esc(t.allow)}</button>
 </form>`;
   const html = `<!doctype html><html lang="${t === TEXTS.es ? "es" : "en"}"><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(t.title)}</title>
-<style>body{font:16px system-ui,sans-serif;max-width:26rem;margin:3rem auto;padding:0 1rem;color:#222;background:#fff}
-@media(prefers-color-scheme:dark){body{color:#ddd;background:#1e1e1e}}label{display:block;margin:1rem 0}
-input[type=password]{display:block;width:100%;box-sizing:border-box;padding:.6rem;font-size:1rem;margin-top:.3rem}
-button{padding:.6rem 1.2rem;font-size:1rem}.err{color:#c33}</style>
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">
+<title>${esc(t.title)}</title>
+<style>${CSS}</style>
+<main class="card">
+${GEM}
 <h1>${esc(t.title)}</h1>
 ${body}
+</main>
 </html>`;
   return new Response(html, {
     status: status ?? (o.error ? 400 : 200),
