@@ -32,6 +32,8 @@ const hhmm = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2
 const AFTER_EDIT_MS = 20_000;
 /** The first run after Obsidian opens (when "Sync on startup" is on). */
 const STARTUP_MS = 3_000;
+/** Coming back to Obsidian syncs, unless a run started less than this long ago. */
+const RESUME_GAP_MS = 30_000;
 /** A request gives up after this long, plus a second per 50 kB it sends. */
 const TIMEOUT_MS = 60_000;
 
@@ -154,6 +156,7 @@ export default class WebDavSyncPlugin extends Plugin {
   private statusBar: HTMLElement | null = null;
   private timer: number | null = null;
   private startup: number | null = null;
+  private lastStart = 0; // when the last run started (ms)
   private readonly ownWrites = new Map<string, number>(); // path → when this plugin wrote it
   private readonly syncSoon = debounce(() => void this.runSync(false), AFTER_EDIT_MS, true);
 
@@ -204,6 +207,15 @@ export default class WebDavSyncPlugin extends Plugin {
       this.registerEvent(this.app.vault.on("delete", changed));
       this.registerEvent(this.app.vault.on("rename", changed));
       if (this.data.settings.syncOnStartup) this.startup = window.setTimeout(() => void this.runSync(false), STARTUP_MS);
+      // Back to the foreground: a phone resumes Obsidian instead of starting it again (no startup run, timers asleep
+      // meanwhile), and a desktop window regains focus. Not again within RESUME_GAP_MS of the last run's start.
+      const resumed = () => {
+        if (!this.data.settings.syncOnStartup || document.visibilityState !== "visible") return;
+        if (Date.now() - this.lastStart < RESUME_GAP_MS) return;
+        void this.runSync(false);
+      };
+      this.registerDomEvent(document, "visibilitychange", resumed);
+      this.registerDomEvent(window, "focus", resumed);
     });
     this.showStatus();
   }
@@ -306,6 +318,7 @@ export default class WebDavSyncPlugin extends Plugin {
       return;
     }
     this.running = true;
+    this.lastStart = Date.now();
     this.showStatus(t.statusSyncing);
     try {
       const dav = this.dav();

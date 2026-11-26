@@ -21,7 +21,7 @@ A small plugin on purpose: one kind of server, one way of syncing, and a sync en
   - An old copy of the server put back (a backup restore) never rolls a note back.
 - **A guard against accidents.** A sync that would delete more than 5 files and over a third of the vault stops and
   shows you the list first. Pointing the plugin at another server, or an empty folder, never deletes anything.
-- **Automatic**: on startup, every few minutes, and shortly after you stop typing. Also from the ribbon icon and the
+- **Automatic**: on startup, when you come back to Obsidian (the phone app reopened, the window focused), every few minutes, and shortly after you stop typing. Also from the ribbon icon and the
   *Sync now* command.
 - **Secrets stay out of the vault**: the password and the passphrase live in Obsidian's secret storage.
 - **In your language**: English and Spanish, following Obsidian's language setting.
@@ -64,7 +64,7 @@ Requires Obsidian 1.11.4 or later.
 | Setting | Default | |
 |---|---|---|
 | Sync every (minutes) | 5 | 0 turns it off |
-| Sync on startup | on | 3 seconds after Obsidian opens |
+| Sync on startup and on return | on | 3 seconds after Obsidian opens, and whenever you come back to it (not twice within 30 seconds) |
 | Sync after editing | on | 20 seconds after your last change |
 | Largest file (MB) | 50 | bigger files are left out, never deleted |
 

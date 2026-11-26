@@ -3,7 +3,7 @@
 import { NoteError, Notes } from "./notes";
 import { OAuth, json } from "./oauth";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26"];
 
 const str = (description: string) => ({ type: "string", description });
