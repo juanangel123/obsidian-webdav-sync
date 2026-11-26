@@ -186,7 +186,10 @@ export class OAuth {
     if (get("code_challenge_method") !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(get("code_challenge")))
       return { error: "PKCE (S256) is required" };
     return {
+      // Everything the form sends back on POST, where it is checked again.
       ok: {
+        response_type: "code",
+        code_challenge_method: "S256",
         client_id: get("client_id"),
         redirect_uri: redirect,
         code_challenge: get("code_challenge"),

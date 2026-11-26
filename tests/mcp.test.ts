@@ -196,7 +196,13 @@ describe("oauth", () => {
     const { handle, client_id, verifier, params, login } = await connect(auth);
     const form = await handle(new Request(`${BASE}/authorize?${new URLSearchParams(params)}`, { headers: { "Accept-Language": "es-ES" } }));
     expect(form.status).toBe(200);
-    expect(await form.text()).toContain("Contraseña");
+    const html = await form.text();
+    expect(html).toContain("Contraseña");
+    // What a browser posts: the form's own fields plus the password.
+    const posted = new URLSearchParams([...html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)">/g)].map((m) => [m[1], m[2].replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))]));
+    posted.set("password", PASSWORD);
+    const viaForm = await handle(new Request(`${BASE}/authorize`, { method: "POST", body: posted }));
+    expect(viaForm.status).toBe(302);
     expect((await login("wrong password!")).status).toBe(401);
     const ok = await login(PASSWORD);
     expect(ok.status).toBe(302);
