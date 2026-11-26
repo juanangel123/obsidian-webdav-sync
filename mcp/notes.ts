@@ -1,7 +1,7 @@
 // The vault as one more device that never keeps a copy on disk: it reads the server's blobs, keeps what it learned
 // in memory (a name → path map, and the text of the notes for searching), and writes the way a device does. A device
 // that syncs later sees these writes as another device's edits: new versions it downloads, or a conflict copy if it
-// changed the same note meanwhile. Never deletes, moves nor renames.
+// changed the same note meanwhile. Deletes only to the server's trash, as a device does; never moves nor renames.
 //
 // rclone (the server this runs next to) ignores If-Match and If-None-Match on PUT, so no write here is atomic:
 // writes run one at a time in this process, each is checked right before (the ETag) and right after (the server
@@ -9,7 +9,7 @@
 // device uploading the same note — the same one the devices have between themselves.
 
 import { type Keys, DecryptError, buf, open, remoteName, seal, validPath } from "../src/crypto";
-import { META, openVault } from "../src/sync";
+import { META, TRASH, openVault } from "../src/sync";
 import { type WebDav, WebDavError } from "../src/webdav";
 
 const dec = new TextDecoder();
@@ -298,6 +298,44 @@ export class Notes {
         return o.path;
       }
       throw new NoteError(`"${e.path}" keeps changing on another device: try again in a moment`);
+    });
+  }
+
+  /**
+   * Deletes a file the way a device does: its blob moves to the server's trash (`.trash/<time>/`, recoverable there),
+   * and each device moves its copy to the vault's trash on its next sync — or uploads it again if it edited it since,
+   * so an edit is never lost. Refused when the file changed on the server after this process last read it.
+   */
+  delete(path: string): Promise<string> {
+    return this.exclusive(async () => {
+      await this.refresh();
+      const e = this.find(path);
+      if (!e) throw new NoteError(`no file at "${path}"`);
+      const st = await this.dav.stat(e.name);
+      if (!st) {
+        this.byName.delete(e.name);
+        throw new NoteError(`"${e.path}" was just deleted on another device`);
+      }
+      if (st.etag !== e.etag) throw new NoteError(`"${e.path}" just changed on another device: nothing was deleted, read it again first`);
+      const dir = `${TRASH}/${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      await this.dav.mkcol(TRASH);
+      await this.dav.mkcol(dir);
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await this.dav.move(e.name, `${dir}/${e.name}`);
+          break;
+        } catch (err) {
+          // 404: gone meanwhile; 423: a device's upload of this file is in flight.
+          if (err instanceof WebDavError && err.status === 404) {
+            this.byName.delete(e.name);
+            throw new NoteError(`"${e.path}" was just deleted on another device`);
+          }
+          if (!(err instanceof WebDavError && err.status === 423) || attempt >= 4) throw err;
+          await sleep(200 * (attempt + 1));
+        }
+      }
+      this.byName.delete(e.name);
+      return e.path;
     });
   }
 }

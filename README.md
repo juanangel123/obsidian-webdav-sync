@@ -114,12 +114,13 @@ are, their approximate sizes and when they change — not their names, folders o
 ## MCP server (optional): your notes in Claude or another AI app
 
 `mcp/` is a small server that lets an MCP client — such as a custom connector in Claude, or Claude Code — search,
-read and add to your notes. It runs next to your WebDAV server and behaves like one more device: it reads and writes
+read, add to and delete your notes. It runs next to your WebDAV server and behaves like one more device: it reads and writes
 the encrypted files the same way the plugin does, keeps nothing on disk, and your devices pick its changes up on
 their next sync.
 
 - **Tools**: `search_notes` (case and accents ignored), `list_notes`, `read_note`, `create_note`, `append_to_note`
-  (Markdown and text notes only). It never deletes, moves or renames anything. A note it appends to that you also
+  (Markdown and text notes only), `delete_note` (to the server's trash, then each device's trash on its next sync; a
+  device that edited the file meanwhile uploads it again). It never moves or renames anything. A note it appends to that you also
   changed on a device before syncing keeps both versions, as with any two devices. Attachments over 2 MB are never
   downloaded by it (so they are not listed by name).
 - **The trade-off**: the server needs your encryption passphrase, so whoever controls the machine it runs on can read

@@ -54,7 +54,7 @@ export interface Result {
 }
 
 export const META = "sync.json";
-const TRASH = ".trash";
+export const TRASH = ".trash";
 /** Decrypted contents kept between resolving unknown names and writing them, at most (a phone's memory). */
 const CACHE_BYTES = 32 * 1024 * 1024;
 /** Blob overhead over the content: magic, IV, tag, header. */

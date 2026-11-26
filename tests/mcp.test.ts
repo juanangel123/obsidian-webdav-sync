@@ -169,6 +169,25 @@ describe.skipIf(!rcloneBin())("notes", () => {
     expect(phone.fs.text("Trabajo/Plan v2.0.md")).toBe("x");
   });
 
+  test("a delete goes to the server's trash and to the devices' trash; a device's edit since is kept", async () => {
+    const { server, phone, notes } = await setup();
+    const laptop = new Device(server);
+    await laptop.sync();
+    laptop.fs.set("Trabajo/Ideas.md", "Editada en el portátil sin sincronizar.");
+    expect(await notes.delete("recetas/canción del pan.md")).toBe("Recetas/Canción del pan.md");
+    expect(await notes.delete("Trabajo/Ideas.md")).toBe("Trabajo/Ideas.md");
+    expect(await notes.delete("foto.png")).toBe("foto.png");
+    await expect(notes.delete("Trabajo/Ideas.md")).rejects.toThrow("no file at");
+    await expect(notes.read("Trabajo/Ideas.md")).rejects.toThrow(NoteError);
+    const trash = readdirSync(join(server.dir, ".trash")).flatMap((d) => readdirSync(join(server.dir, ".trash", d)));
+    expect(trash.length).toBe(3);
+    await phone.sync();
+    expect(phone.fs.trashed.sort()).toEqual(["Recetas/Canción del pan.md", "Trabajo/Ideas.md", "foto.png"]);
+    await laptop.sync(); // its edit wins: uploaded again
+    expect(laptop.fs.text("Trabajo/Ideas.md")).toBe("Editada en el portátil sin sincronizar.");
+    expect((await notes.read("Trabajo/Ideas.md")).text).toBe("Editada en el portátil sin sincronizar.");
+  });
+
   test("a note created where one was deleted reaches a device that still remembers the old one", async () => {
     const server = await startServer();
     servers.push(server);
@@ -344,7 +363,7 @@ describe("oauth", () => {
     expect(init.result.protocolVersion).toBe("2025-06-18");
     expect((await mcp({ jsonrpc: "2.0", method: "notifications/initialized" })).status).toBe(202);
     const tools = (await (await mcp({ jsonrpc: "2.0", id: 2, method: "tools/list" })).json()) as { result: { tools: { name: string }[] } };
-    expect(tools.result.tools.map((x) => x.name)).toEqual(["search_notes", "list_notes", "read_note", "create_note", "append_to_note"]);
+    expect(tools.result.tools.map((x) => x.name)).toEqual(["search_notes", "list_notes", "read_note", "create_note", "append_to_note", "delete_note"]);
     const call = (await (
       await mcp({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "create_note", arguments: { path: "Compra", content: "x" } } })
     ).json()) as { result: { content: { text: string }[]; isError: boolean } };

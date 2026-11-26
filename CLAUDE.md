@@ -20,7 +20,7 @@ user-facing doc (features, setup, server, how it works); this file is the engine
 | `src/webdav.ts` | WebDAV over an injected HTTP function; a regex PROPFIND parser (no DOMParser, so it runs under Bun) |
 | `src/main.ts` | Obsidian glue: `requestUrl` with a timeout, the vault as `LocalFs`, secrets in `app.secretStorage`, triggers, pausing, the confirmation modal, settings |
 | `src/i18n.ts` | every user-facing string, per language (`en` the source, the rest typed against it), picked from Obsidian's `getLanguage()` on load; `errorText` turns the engine's errors (their `kind`, a WebDAV status) into a message in that language |
-| `mcp/notes.ts` | the MCP server's vault: a device with no disk — name → path map and note texts in memory (refreshed by ETag; attachments over 2 MB never fetched; a new `sync.json` drops the keys), search (accents folded), create (NFC, refused in any case or Unicode form, folders spelled as the vault has them, version = the time so it beats any remembered one), append (bytes kept, UTF-8 only); writes one at a time and checked after the PUT, as rclone ignores If-Match / If-None-Match; never deletes |
+| `mcp/notes.ts` | the MCP server's vault: a device with no disk — name → path map and note texts in memory (refreshed by ETag; attachments over 2 MB never fetched; a new `sync.json` drops the keys), search (accents folded), create (NFC, refused in any case or Unicode form, folders spelled as the vault has them, version = the time so it beats any remembered one), append (bytes kept, UTF-8 only); writes one at a time and checked after the PUT, as rclone ignores If-Match / If-None-Match; delete (refreshed, ETag checked, MOVE to the server's `.trash/<time>/`, as a device's deleteRemote) |
 | `mcp/oauth.ts`, `mcp/page.ts` | OAuth 2.1 for one person with no storage: signed client ids (redirects, name), codes, tokens (`aud`, a 90-day session refreshing never extends; key = secret + password); per-address lockout (`CF-Connecting-IP`); the sign-in page (who asks, where access goes) |
 | `mcp/server.ts`, `mcp/main.ts`, `mcp/http.ts` | the MCP endpoint (Streamable HTTP, stateless JSON, tools), the process (settings from the environment, body and idle limits) and shared HTTP helpers |
 | `scripts/decrypt.ts` | recovery from a server copy without Obsidian |
@@ -51,7 +51,7 @@ carries a `kind` that `errorText` translates. A new language: a dictionary `xx: 
 
 ## Checks and release
 
-- `bun run check`: both type-checks, 87 tests (pure logic, the translations; the MCP server and its OAuth; devices synced through a real `rclone serve webdav` —
+- `bun run check`: both type-checks, 88 tests (pure logic, the translations; the MCP server and its OAuth; devices synced through a real `rclone serve webdav` —
   races, interrupted runs, restores, corrupt or swapped blobs, case-insensitive disks, the recovery script), build.
   The rclone tests are skipped when rclone is missing: never release on a run that skipped them.
 - `bun run e2e` (Windows): the built plugin in two real Obsidian instances with their own profiles and throwaway

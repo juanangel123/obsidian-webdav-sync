@@ -50,6 +50,13 @@ const TOOLS = [
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   },
+  {
+    name: "delete_note",
+    description:
+      "Delete a note or file. It goes to the server's trash (recoverable there) and to each device's trash on its next sync; a device that edited it meanwhile keeps it. Only when the owner asks to delete that file.",
+    inputSchema: { type: "object", properties: { path: str("The file's exact path, from list_notes or search_notes") }, required: ["path"] },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+  },
 ];
 
 export interface ServerConfig {
@@ -96,6 +103,11 @@ export function createHandler(cfg: ServerConfig): (req: Request) => Promise<Resp
         const p = await cfg.notes.append(s("path"), s("text"));
         return `Added to "${p}". It reaches the devices on their next sync.`;
       }
+      case "delete_note": {
+        if (!s("path").trim()) throw new NoteError("a path is required");
+        const p = await cfg.notes.delete(s("path"));
+        return `Deleted "${p}": it is in the server's trash, and goes to each device's trash on its next sync.`;
+      }
     }
     throw new RpcError(-32602, `unknown tool ${name}`);
   }
@@ -113,7 +125,8 @@ export function createHandler(cfg: ServerConfig): (req: Request) => Promise<Resp
           serverInfo: { name: "webdav-vault-notes", version: pkg.version },
           instructions:
             "The owner's Obsidian vault (Markdown notes). Search before reading; never invent paths: list or search first. " +
-            "To jot something down, create a note (or append to the one the owner names). Writes reach the owner's devices on their next sync.",
+            "To jot something down, create a note (or append to the one the owner names). Delete only a file the owner asks to delete. " +
+            "Writes reach the owner's devices on their next sync.",
         });
       }
       case "ping":
