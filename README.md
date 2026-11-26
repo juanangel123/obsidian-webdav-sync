@@ -110,6 +110,25 @@ then HKDF gives two keys: AES-256-GCM for contents and HMAC-SHA-256 for names. A
 path; the path itself is sealed inside with the content and a version number. The server learns how many files there
 are, their approximate sizes and when they change — not their names, folders or contents.
 
+## MCP server (optional): your notes in Claude or another AI app
+
+`mcp/` is a small server that lets an MCP client — such as a custom connector in Claude — search, read and add to
+your notes. It runs next to your WebDAV server and behaves like one more device: it reads and writes the encrypted
+files the same way the plugin does, keeps nothing on disk, and your devices pick its changes up on their next sync.
+
+- **Tools**: `search_notes` (case and accents ignored), `list_notes`, `read_note`, `create_note`, `append_to_note`.
+  It never deletes, moves or renames anything. A note it appends to that you also changed on a device before syncing
+  keeps both versions, as with any two devices.
+- **The trade-off**: the server needs your encryption passphrase, so whoever controls the machine it runs on can read
+  your notes. Without it, the server only ever holds ciphertext. Anything the AI app reads also goes to its provider.
+- **Login**: OAuth 2.1 for one person (dynamic client registration, PKCE), with a password of its own; tokens are
+  signed, nothing is stored. Only the redirect addresses in `MCP_REDIRECTS` can register (Claude's by default).
+  Changing the password or `MCP_SECRET` logs every client out. Five wrong passwords pause logins for 15 minutes.
+- **Run it**: `bun run mcp:build` gives `dist/notes-mcp.js` (~25 kB), run with `bun dist/notes-mcp.js` behind HTTPS;
+  settings from the environment, listed at the top of `mcp/main.ts`. About 35 MB of memory.
+- **Connect**: in Claude, *Settings → Connectors → Add custom connector*, the address `https://<your server>/mcp`,
+  then log in with the password.
+
 ## Recovering without Obsidian
 
 From a copy of the server's folder (a backup), with [Bun](https://bun.sh) and a clone of this repository:

@@ -19,11 +19,14 @@ user-facing doc (features, setup, server, how it works); this file is the engine
 | `src/crypto.ts` | keys (PBKDF2 → HKDF → AES-GCM + HMAC), names, seal/open (path + version sealed inside, name checked on open), `sync.json`, `validPath` |
 | `src/webdav.ts` | WebDAV over an injected HTTP function; a regex PROPFIND parser (no DOMParser, so it runs under Bun) |
 | `src/main.ts` | Obsidian glue: `requestUrl` with a timeout, the vault as `LocalFs`, secrets in `app.secretStorage`, triggers, pausing, the confirmation modal, settings |
+| `mcp/notes.ts` | the MCP server's vault: a device with no disk — name → path map and note texts in memory (refreshed by ETag), search (accents folded), create (only where nothing is, any case), append (re-checks the ETag, re-reads on a change); never deletes |
+| `mcp/oauth.ts` | OAuth 2.1 for one person with no storage: signed client ids, codes, tokens (key from secret + password); login page; lockout |
+| `mcp/server.ts`, `mcp/main.ts` | the MCP endpoint (Streamable HTTP, stateless JSON, tools) and the process (settings from the environment) |
 | `scripts/decrypt.ts` | recovery from a server copy without Obsidian |
 | `scripts/version.ts` | `bun run version x.y.z`: package.json, manifest.json, versions.json |
 
-`src/` is type-checked without Bun's or Node's types (`tsconfig.json`): it runs on phones. Tests and scripts use
-`tsconfig.test.json`.
+`src/` is type-checked without Bun's or Node's types (`tsconfig.json`): it runs on phones. Tests, scripts and `mcp/`
+(Bun) use `tsconfig.test.json`.
 
 ## Invariants
 
@@ -42,7 +45,7 @@ user-facing doc (features, setup, server, how it works); this file is the engine
 
 ## Checks and release
 
-- `bun run check`: both type-checks, 58 tests (pure logic; devices synced through a real `rclone serve webdav` —
+- `bun run check`: both type-checks, 69 tests (pure logic; the MCP server and its OAuth; devices synced through a real `rclone serve webdav` —
   races, interrupted runs, restores, corrupt or swapped blobs, case-insensitive disks, the recovery script), build.
   The rclone tests are skipped when rclone is missing: never release on a run that skipped them.
 - `bun run e2e` (Windows): the built plugin in two real Obsidian instances with their own profiles and throwaway

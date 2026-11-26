@@ -10,7 +10,9 @@
     "check": "bun run typecheck && bun test && bun run build",
     "decrypt": "bun scripts/decrypt.ts",
     "version": "bun scripts/version.ts",
-    "e2e": "bun run build && bun tests/obsidian/e2e.ts"
+    "e2e": "bun run build && bun tests/obsidian/e2e.ts",
+    "mcp": "bun mcp/main.ts",
+    "mcp:build": "bun build mcp/main.ts --target=bun --minify --outfile dist/notes-mcp.js"
   },
   "devDependencies": {
     "@types/bun": "^1.4.5",

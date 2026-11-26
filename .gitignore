@@ -4,3 +4,4 @@ main.js
 # Claude (personal local settings)
 .claude/settings.local.json
 CLAUDE.local.md
+dist/
