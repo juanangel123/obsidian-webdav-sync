@@ -123,7 +123,7 @@ files the same way the plugin does, keeps nothing on disk, and your devices pick
 - **The trade-off**: the server needs your encryption passphrase, so whoever controls the machine it runs on can read
   your notes. Without it, the server only ever holds ciphertext. Anything the AI app reads also goes to its provider.
 - **Login**: OAuth 2.1 for one person (dynamic client registration, PKCE), with a password of its own; tokens are
-  signed, nothing is stored. Only the redirect addresses in `MCP_REDIRECTS` can register (Claude's by default).
+  signed, nothing is stored. Only the redirect addresses in `MCP_REDIRECTS` (Claude's by default) and ones back to your own machine (`http://localhost:<port>/…`, for local clients such as Claude Code) can register.
   Changing the password or `MCP_SECRET` logs every client out. Five wrong passwords pause logins for 15 minutes.
 - **Run it**: `bun run mcp:build` gives `dist/notes-mcp.js` (~25 kB), run with `bun dist/notes-mcp.js` behind HTTPS;
   settings from the environment, listed at the top of `mcp/main.ts`. About 35 MB of memory.

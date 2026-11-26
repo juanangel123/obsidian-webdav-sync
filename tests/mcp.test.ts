@@ -183,6 +183,12 @@ describe("oauth", () => {
       new Request(`${BASE}/register`, { method: "POST", body: JSON.stringify({ redirect_uris: ["https://evil.example/cb"] }) }),
     );
     expect(res.status).toBe(400);
+    const reg = (uris: string[]) =>
+      handle(new Request(`${BASE}/register`, { method: "POST", body: JSON.stringify({ redirect_uris: uris }) }));
+    expect((await reg(["http://localhost:53682/callback"])).status).toBe(201); // a local client (Claude Code)
+    expect((await reg(["http://127.0.0.1/callback"])).status).toBe(201);
+    expect((await reg(["http://localhost.evil.example/callback"])).status).toBe(400);
+    expect((await reg(["https://localhost:3000/callback?x=https://evil"])).status).toBe(400);
   });
 
   test("the form, a wrong password, then the code, the tokens and the endpoint", async () => {

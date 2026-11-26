@@ -141,6 +141,15 @@ export class OAuth {
     return null;
   }
 
+  /**
+   * A configured redirect URI, or one back to the person's own machine (RFC 8252 loopback, any port: what a local
+   * client such as Claude Code listens on). A loopback code can only reach the machine that logged in.
+   */
+  private allowedRedirect(u: string): boolean {
+    if (this.cfg.redirects.includes(u)) return true;
+    return /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?\/[\w/-]*$/.test(u);
+  }
+
   private async register(req: Request): Promise<Response> {
     let body: { redirect_uris?: unknown; client_name?: unknown };
     try {
@@ -149,7 +158,7 @@ export class OAuth {
       return json({ error: "invalid_client_metadata", error_description: "not JSON" }, 400);
     }
     const uris = body.redirect_uris;
-    if (!Array.isArray(uris) || !uris.length || !uris.every((u) => typeof u === "string" && this.cfg.redirects.includes(u)))
+    if (!Array.isArray(uris) || !uris.length || !uris.every((u) => typeof u === "string" && this.allowedRedirect(u)))
       return json({ error: "invalid_redirect_uri", error_description: "this server only accepts its known clients" }, 400);
     const clientId = await this.sign({ t: "client", r: uris, n: b64url(crypto.getRandomValues(new Uint8Array(9))) });
     return json(
