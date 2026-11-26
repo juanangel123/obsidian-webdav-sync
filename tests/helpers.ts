@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LocalFile } from "../src/plan";
 import { type LocalFs, LocalChanged } from "../src/sync";
+import { fetchHttp as makeFetchHttp } from "../mcp/http";
 import { type Http, WebDav } from "../src/webdav";
 
 /**
@@ -69,12 +70,7 @@ export class MemFs implements LocalFs {
   }
 }
 
-export const fetchHttp: Http = async (req) => {
-  const res = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
-  const headers: Record<string, string> = {};
-  res.headers.forEach((v, k) => (headers[k.toLowerCase()] = v));
-  return { status: res.status, headers, body: await res.arrayBuffer() };
-};
+export const fetchHttp: Http = makeFetchHttp();
 
 export function rcloneBin(): string | null {
   const fromEnv = process.env.RCLONE;
@@ -98,13 +94,18 @@ export async function startServer() {
     { stdout: "ignore", stderr: "ignore" },
   );
   const url = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 100; i++) {
+  let up = false;
+  for (let i = 0; i < 100 && !up; i++) {
     try {
       await fetch(url);
-      break;
+      up = true;
     } catch {
       await Bun.sleep(100);
     }
+  }
+  if (!up) {
+    proc.kill();
+    throw new Error(`rclone did not start on port ${port} (taken?)`);
   }
   return {
     url,

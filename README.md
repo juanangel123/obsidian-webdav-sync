@@ -64,7 +64,7 @@ Requires Obsidian 1.11.4 or later.
 | Setting | Default | |
 |---|---|---|
 | Sync every (minutes) | 5 | 0 turns it off |
-| Sync on startup and on return | on | 3 seconds after Obsidian opens, and whenever you come back to it (not twice within 30 seconds) |
+| Sync on startup and on return | on | 3 seconds after Obsidian opens, and when you come back to it after a minute or more away (not twice within 30 seconds) |
 | Sync after editing | on | 20 seconds after your last change |
 | Largest file (MB) | 50 | bigger files are left out, never deleted |
 
@@ -113,22 +113,28 @@ are, their approximate sizes and when they change — not their names, folders o
 
 ## MCP server (optional): your notes in Claude or another AI app
 
-`mcp/` is a small server that lets an MCP client — such as a custom connector in Claude — search, read and add to
-your notes. It runs next to your WebDAV server and behaves like one more device: it reads and writes the encrypted
-files the same way the plugin does, keeps nothing on disk, and your devices pick its changes up on their next sync.
+`mcp/` is a small server that lets an MCP client — such as a custom connector in Claude, or Claude Code — search,
+read and add to your notes. It runs next to your WebDAV server and behaves like one more device: it reads and writes
+the encrypted files the same way the plugin does, keeps nothing on disk, and your devices pick its changes up on
+their next sync.
 
-- **Tools**: `search_notes` (case and accents ignored), `list_notes`, `read_note`, `create_note`, `append_to_note`.
-  It never deletes, moves or renames anything. A note it appends to that you also changed on a device before syncing
-  keeps both versions, as with any two devices.
+- **Tools**: `search_notes` (case and accents ignored), `list_notes`, `read_note`, `create_note`, `append_to_note`
+  (Markdown and text notes only). It never deletes, moves or renames anything. A note it appends to that you also
+  changed on a device before syncing keeps both versions, as with any two devices. Attachments over 2 MB are never
+  downloaded by it (so they are not listed by name).
 - **The trade-off**: the server needs your encryption passphrase, so whoever controls the machine it runs on can read
   your notes. Without it, the server only ever holds ciphertext. Anything the AI app reads also goes to its provider.
 - **Login**: OAuth 2.1 for one person (dynamic client registration, PKCE), with a password of its own; tokens are
-  signed, nothing is stored. Only the redirect addresses in `MCP_REDIRECTS` (Claude's by default) and ones back to your own machine (`http://localhost:<port>/…`, for local clients such as Claude Code) can register.
-  Changing the password or `MCP_SECRET` logs every client out. Five wrong passwords pause logins for 15 minutes.
-- **Run it**: `bun run mcp:build` gives `dist/notes-mcp.js` (~25 kB), run with `bun dist/notes-mcp.js` behind HTTPS;
+  signed, nothing is stored. The sign-in page shows the app's name and where the access goes. Only the redirect
+  addresses in `MCP_REDIRECTS` (Claude's by default) and ones back to your own machine (`http://localhost:<port>/…`,
+  for local clients such as Claude Code) can register. A login lasts 90 days. Changing the password or `MCP_SECRET`
+  logs every client out. Five wrong passwords from one address pause its logins for 15 minutes (the address comes
+  from `CF-Connecting-IP`: keep the server on loopback behind Cloudflare or a proxy that sets it).
+- **Run it**: `bun run mcp:build` gives `dist/notes-mcp.js` (~30 kB), run with `bun dist/notes-mcp.js` behind HTTPS;
   settings from the environment, listed at the top of `mcp/main.ts`. About 35 MB of memory.
 - **Connect**: in Claude, *Settings → Connectors → Add custom connector*, the address `https://<your server>/mcp`,
-  then log in with the password.
+  then log in with the password. In Claude Code: `claude mcp add --transport http notes https://<your server>/mcp`,
+  then `/mcp` to log in.
 
 ## Recovering without Obsidian
 

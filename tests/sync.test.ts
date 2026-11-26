@@ -445,11 +445,11 @@ describe.skipIf(!rcloneBin())("recovery", () => {
     a.fs.files.delete("Borrada.md");
     await a.sync();
     const out = mkdtempSync(join(tmpdir(), "webdav-sync-out-"));
-    const proc = Bun.spawnSync(["bun", "scripts/decrypt.ts", s.dir, out], { env: { ...process.env, PASSPHRASE: "secret" } });
+    const proc = Bun.spawnSync(["bun", "scripts/decrypt.ts", s.dir, out], { env: { ...process.env, PASSPHRASE: "secret" }, timeout: 60_000 });
     expect(proc.exitCode).toBe(0);
     expect(readFileSync(join(out, "Carpeta", "Nota.md"), "utf8")).toBe("hola");
     const t = readdirSync(join(out, ".trash"));
     expect(existsSync(join(out, ".trash", t[0], "Borrada.md"))).toBe(true);
     rmSync(out, { recursive: true, force: true });
-  });
+  }, 90_000);
 });

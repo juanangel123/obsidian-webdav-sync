@@ -162,7 +162,8 @@ export class WebDav {
 
   /**
    * Writes a file; returns its new ETag when the server tells it on the PUT (else ""). `onlyIfAbsent` sends
-   * `If-None-Match: *` and throws a 412 WebDavError when the file exists (on servers that honour it).
+   * `If-None-Match: *` and throws a 412 WebDavError when the file exists — on servers that honour it: rclone doesn't
+   * (nor If-Match), so callers check before and after.
    */
   async put(name: string, data: ArrayBuffer | string, onlyIfAbsent = false): Promise<string> {
     const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };

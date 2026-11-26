@@ -30,9 +30,10 @@ const hhmm = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2
 
 /** A run starts this long after the last edit (when "Sync after editing" is on). */
 const AFTER_EDIT_MS = 20_000;
-/** The first run after Obsidian opens (when "Sync on startup" is on). */
+/** The first run after Obsidian opens (when "Sync on startup" is on; the setting's key predates "and on return"). */
 const STARTUP_MS = 3_000;
-/** Coming back to Obsidian syncs, unless a run started less than this long ago. */
+/** Coming back to Obsidian syncs if it was away at least AWAY_MS and no run started in the last RESUME_GAP_MS. */
+const AWAY_MS = 60_000;
 const RESUME_GAP_MS = 30_000;
 /** A request gives up after this long, plus a second per 50 kB it sends. */
 const TIMEOUT_MS = 60_000;
@@ -194,6 +195,7 @@ export default class WebDavSyncPlugin extends Plugin {
     this.schedule();
 
     this.app.workspace.onLayoutReady(() => {
+      if (this.unloaded) return; // disabled before the layout was ready: nothing to register on a dead component
       // Registered here: the vault fires "create" for every file while it loads.
       const changed = (file: { path: string }) => {
         const own = this.ownWrites.get(file.path);
@@ -206,15 +208,25 @@ export default class WebDavSyncPlugin extends Plugin {
       this.registerEvent(this.app.vault.on("create", changed));
       this.registerEvent(this.app.vault.on("delete", changed));
       this.registerEvent(this.app.vault.on("rename", changed));
-      if (this.data.settings.syncOnStartup) this.startup = window.setTimeout(() => void this.runSync(false), STARTUP_MS);
+      if (this.data.settings.syncOnStartup) {
+        this.lastStart = Date.now(); // the startup run counts: a focus right after opening doesn't add another
+        this.startup = window.setTimeout(() => void this.runSync(false), STARTUP_MS);
+      }
       // Back to the foreground: a phone resumes Obsidian instead of starting it again (no startup run, timers asleep
-      // meanwhile), and a desktop window regains focus. Not again within RESUME_GAP_MS of the last run's start.
+      // meanwhile), and a desktop window regains focus. Only after a real absence (not an alt-tab and back), and not
+      // within RESUME_GAP_MS of the last run's start.
+      let awayAt: number | null = null;
+      const away = () => (awayAt ??= Date.now());
       const resumed = () => {
-        if (!this.data.settings.syncOnStartup || document.visibilityState !== "visible") return;
+        if (document.visibilityState !== "visible") return away();
+        const was = awayAt;
+        awayAt = null;
+        if (!this.data.settings.syncOnStartup || was === null || Date.now() - was < AWAY_MS) return;
         if (Date.now() - this.lastStart < RESUME_GAP_MS) return;
         void this.runSync(false);
       };
       this.registerDomEvent(document, "visibilitychange", resumed);
+      this.registerDomEvent(window, "blur", away);
       this.registerDomEvent(window, "focus", resumed);
     });
     this.showStatus();

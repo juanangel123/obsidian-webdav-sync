@@ -11,13 +11,13 @@ reviewed before it). The owner may name another range.
 
 ## Dimensions
 
-1. **Never lose a note** (`src/plan.ts`, `src/sync.ts`): every combination of local × remote × last-sync state, and
+1. **Never lose a note** (`src/plan.ts`, `src/sync.ts`, and the MCP server's writes in `mcp/notes.ts` — rclone ignores If-Match / If-None-Match, so every write's checks before and after count): every combination of local × remote × last-sync state, and
    what each action does when it fails half way (the state written only after both sides agree?); an edit never
    overwritten without a conflict copy; deletions only to a trash; the deletion guard; a file edited *during* a run;
    renames, case-only renames on Windows/Android (case-insensitive) against a case-sensitive server; paths with
    unicode, spaces, `#`, `%`, `?`; empty files; a remote file that can't be decrypted; a second device's first sync;
    a lost state (reinstall); two devices syncing at once.
-2. **Security and cryptography** (`src/crypto.ts`): AES-GCM IV uniqueness, key derivation (salt, iterations),
+2. **Security and cryptography** (`src/crypto.ts`; the MCP server's OAuth in `mcp/oauth.ts`, its sign-in page, what it logs, the passphrase it holds): AES-GCM IV uniqueness, key derivation (salt, iterations),
    key separation (AES vs HMAC), what the server learns (names, sizes, counts, timings), `sync.json` (can a tampered
    one make a device encrypt under an attacker's key, or downgrade?), a wrong passphrase never writes anything,
    secrets (password, passphrase) where they are stored and whether they can leak into logs, notices or the repo;
@@ -30,8 +30,8 @@ reviewed before it). The owner may name another range.
    repeated on every run (HMAC of every path, key derivation), battery on the phone (interval, debounce), the server
    side (the server's trash growth).
 5. **Refactoring and structure**: duplication, dead code, stale comments, names, functions grown too long, the pure
-   core (`plan`, `crypto`, `webdav`, `sync`) free of Obsidian imports; the file layout (`src/`, `tests/`, `scripts/`).
-6. **Tests**: every decision of `plan` covered; the sync runs against a real WebDAV server; failures (network down,
+   core (`plan`, `crypto`, `webdav`, `sync`) free of Obsidian imports; the file layout (`src/`, `mcp/`, `tests/`, `scripts/`).
+6. **Tests**: every decision of `plan` covered; the MCP server's writes against a real WebDAV server and its OAuth flow; the sync runs against a real WebDAV server; failures (network down,
    a 5xx, a corrupt blob) tested; nothing hits the owner's server.
 7. **Documentation**: `README.md` (user-facing, public: no personal data, hostnames, secrets), `CLAUDE.md`, header
    comments, against the code as it is now — stale numbers (iterations, debounce, interval, guard thresholds),

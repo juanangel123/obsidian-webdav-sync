@@ -1,9 +1,10 @@
 // The MCP endpoint (Streamable HTTP, stateless: one JSON answer per POST, no event stream) and its tools.
 
-import { NoteError, Notes } from "./notes";
-import { OAuth, json } from "./oauth";
+import pkg from "../package.json";
+import { json } from "./http";
+import { NoteError, type Notes } from "./notes";
+import type { OAuth } from "./oauth";
 
-export const VERSION = "0.2.0";
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26"];
 
 const str = (description: string) => ({ type: "string", description });
@@ -74,9 +75,10 @@ export function createHandler(cfg: ServerConfig): (req: Request) => Promise<Resp
         return hits.map((h) => `- ${h.path}${h.snippet ? `\n  ${h.snippet}` : ""}`).join("\n");
       }
       case "list_notes": {
-        const files = await cfg.notes.list(s("folder"));
-        if (!files.length) return "No files there.";
-        return files.map((f) => `- ${f.path} (${f.size} B)`).join("\n");
+        const { files, unnamed } = await cfg.notes.list(s("folder"));
+        const big = unnamed ? `\n(${unnamed} large attachments not listed: they are never downloaded here)` : "";
+        if (!files.length) return `No files there.${big}`;
+        return files.map((f) => `- ${f.path} (${f.size} bytes)`).join("\n") + big;
       }
       case "read_note": {
         const n = await cfg.notes.read(s("path"));
@@ -108,7 +110,7 @@ export function createHandler(cfg: ServerConfig): (req: Request) => Promise<Resp
         return ok({
           protocolVersion: PROTOCOLS.includes(asked) ? asked : PROTOCOLS[0],
           capabilities: { tools: {} },
-          serverInfo: { name: "webdav-vault-notes", version: VERSION },
+          serverInfo: { name: "webdav-vault-notes", version: pkg.version },
           instructions:
             "The owner's Obsidian vault (Markdown notes). Search before reading; never invent paths: list or search first. " +
             "To jot something down, create a note (or append to the one the owner names). Writes reach the owner's devices on their next sync.",
